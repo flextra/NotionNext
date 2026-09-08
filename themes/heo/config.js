@@ -24,8 +24,7 @@ const CONFIG = {
 
   // 首页顶部通知条滚动内容，如不需要可以留空 []
   HEO_NOTICE_BAR: [
-    { title: '欢迎来到爱免费', url: 'https://www.ibuyfree.com' },
-    { title: '访问文档中心获取更多帮助', url: 'https://docs.ibuyfree.com' }
+    { title: '欢迎来到爱免费', url: 'https://www.ibuyfree.com' }
   ],
 
   // 英雄区左右侧组件颠倒位置
@@ -136,11 +135,11 @@ const CONFIG = {
     }
   ],
 
-  HEO_SOCIAL_CARD: true, // 是否显示右侧，点击加入社群按钮
+  HEO_SOCIAL_CARD: false, // 无有效社群链接，暂时隐藏；docs.ibuyfree.com 不再是文档站，见 CONFIG-TABLE 整改记录
   HEO_SOCIAL_CARD_TITLE_1: '交流频道',
   HEO_SOCIAL_CARD_TITLE_2: '加入我们的社群讨论分享',
   HEO_SOCIAL_CARD_TITLE_3: '点击加入社群',
-  HEO_SOCIAL_CARD_URL: 'https://docs.ibuyfree.com/article/how-to-question',
+  HEO_SOCIAL_CARD_URL: '',
 
   // 底部统计面板文案
   HEO_POST_COUNT_TITLE: '文章数:',
