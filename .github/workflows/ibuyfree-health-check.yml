@@ -3,6 +3,10 @@ name: ibuyfree.com health check
 # 每 30 分钟对生产站跑一次"健康三件套"，失败就开一个 issue 报警。
 # 002-upgrade-notionnext T30。脚本见 scripts/ibuyfree-health-check.sh
 # （跟仓库自带的 scripts/health-check.js 是两回事，那个是本地构建检查）。
+#
+# 这个文件本身放在 main 分支（GitHub 定时触发器只认默认分支），
+# 但实际检查逻辑固定从 feat/upgrade-4.10（生产分支）取，main 上
+# 只有这一个文件，不掺和生产代码。
 
 on:
   schedule:
@@ -18,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: feat/upgrade-4.10
 
       - name: Run health check against production
         id: check
