@@ -1,21 +1,22 @@
 name: ibuyfree.com health check
 
-# 每 30 分钟对生产站跑一次"健康三件套"，失败就开一个 issue 报警。
+# 每 30 分钟对生产站跑一次"健康三件套"，失败就让这次运行本身标红失败。
 # 002-upgrade-notionnext T30。脚本见 scripts/ibuyfree-health-check.sh
 # （跟仓库自带的 scripts/health-check.js 是两回事，那个是本地构建检查）。
 #
 # 这个文件本身放在 main 分支（GitHub 定时触发器只认默认分支），
 # 但实际检查逻辑固定从 feat/upgrade-4.10（生产分支）取，main 上
 # 只有这一个文件，不掺和生产代码。
+#
+# 报警方式：这个仓库把 Issues 功能关掉了，所以没法靠开 issue 报警。
+# 改用 GitHub 对失败的 scheduled workflow 自带的邮件通知（发给仓库
+# 的 watchers/actor，默认开启，不需要额外配置）——失败时这一步直接
+# exit 非零，让整个 job 标红失败即可触发。
 
 on:
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch: {}
-
-permissions:
-  issues: write
-  contents: read
 
 jobs:
   health-check:
@@ -26,50 +27,6 @@ jobs:
           ref: feat/upgrade-4.10
 
       - name: Run health check against production
-        id: check
         run: |
           chmod +x scripts/ibuyfree-health-check.sh
-          if scripts/ibuyfree-health-check.sh https://www.ibuyfree.com > check_output.txt 2>&1; then
-            echo "passed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "passed=false" >> "$GITHUB_OUTPUT"
-          fi
-          cat check_output.txt
-
-      - name: Open or update alert issue on failure
-        if: steps.check.outputs.passed == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          BODY_FILE=$(mktemp)
-          {
-            echo "健康检查失败，运行时间 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo ""
-            echo '```'
-            cat check_output.txt
-            echo '```'
-            echo ""
-            echo "工作流: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          } > "$BODY_FILE"
-
-          TITLE="🔴 ibuyfree.com 健康检查失败"
-          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$TITLE\"" --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')
-          if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body-file "$BODY_FILE"
-          else
-            gh issue create --repo "${{ github.repository }}" \
-              --title "$TITLE" \
-              --body-file "$BODY_FILE"
-          fi
-
-      - name: Close alert issue on recovery
-        if: steps.check.outputs.passed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TITLE="🔴 ibuyfree.com 健康检查失败"
-          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$TITLE\"" --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')
-          if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body "恢复正常了（$(date -u +%Y-%m-%dT%H:%M:%SZ)），关闭这条报警。"
-            gh issue close "$EXISTING" --repo "${{ github.repository }}"
-          fi
+          scripts/ibuyfree-health-check.sh https://www.ibuyfree.com
