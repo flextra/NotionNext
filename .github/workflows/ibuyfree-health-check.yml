@@ -1,0 +1,69 @@
+name: ibuyfree.com health check
+
+# 每 30 分钟对生产站跑一次"健康三件套"，失败就开一个 issue 报警。
+# 002-upgrade-notionnext T30。脚本见 scripts/ibuyfree-health-check.sh
+# （跟仓库自带的 scripts/health-check.js 是两回事，那个是本地构建检查）。
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run health check against production
+        id: check
+        run: |
+          chmod +x scripts/ibuyfree-health-check.sh
+          if scripts/ibuyfree-health-check.sh https://www.ibuyfree.com > check_output.txt 2>&1; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+          cat check_output.txt
+
+      - name: Open or update alert issue on failure
+        if: steps.check.outputs.passed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BODY_FILE=$(mktemp)
+          {
+            echo "健康检查失败，运行时间 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo '```'
+            cat check_output.txt
+            echo '```'
+            echo ""
+            echo "工作流: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$BODY_FILE"
+
+          TITLE="🔴 ibuyfree.com 健康检查失败"
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$TITLE\"" --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body-file "$BODY_FILE"
+          else
+            gh issue create --repo "${{ github.repository }}" \
+              --title "$TITLE" \
+              --body-file "$BODY_FILE"
+          fi
+
+      - name: Close alert issue on recovery
+        if: steps.check.outputs.passed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="🔴 ibuyfree.com 健康检查失败"
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$TITLE\"" --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body "恢复正常了（$(date -u +%Y-%m-%dT%H:%M:%SZ)），关闭这条报警。"
+            gh issue close "$EXISTING" --repo "${{ github.repository }}"
+          fi
